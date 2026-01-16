@@ -105,20 +105,6 @@ coro_bus_delete(struct coro_bus *bus)
 int
 coro_bus_channel_open(struct coro_bus *bus, size_t size_limit)
 {
-	/* IMPLEMENT THIS FUNCTION */
-	/*
-	 * One of the tests will force you to reuse the channel
-	 * descriptors. It means, that if your maximal channel
-	 * descriptor is N, and you have any free descriptor in
-	 * the range 0-N, then you should open the new channel on
-	 * that old descriptor.
-	 *
-	 * A more precise instruction - check if any of the
-	 * bus->channels[i] with i = 0 -> bus->channel_count is
-	 * free (== NULL). If yes - reuse the slot. Don't grow the
-	 * bus->channels array, when have space in it.
-	 */
-
 	if (bus->channel_count > 0) {
 		for (auto i = 0; i < bus->channel_count; ++i) {
 			if (!bus->channels.at(i).has_value()) {
@@ -143,27 +129,6 @@ coro_bus_channel_open(struct coro_bus *bus, size_t size_limit)
 void
 coro_bus_channel_close(struct coro_bus *bus, int channel)
 {
-	/*
-	 * Be very attentive here. What happens, if the channel is
-	 * closed while there are coroutines waiting on it? For
-	 * example, the channel was empty, and some coros were
-	 * waiting on its recv_queue.
-	 *
-	 * If you wakeup those coroutines and just delete the
-	 * channel right away, then those waiting coroutines might
-	 * on wakeup try to reference invalid memory.
-	 *
-	 * Can happen, for example, if you use an intrusive list
-	 * (rlist), delete the list itself (by deleting the
-	 * channel), and then the coroutines on wakeup would try
-	 * to remove themselves from the already destroyed list.
-	 *
-	 * Think how you could address that. Remove all the
-	 * waiters from the list before freeing it? Yield this
-	 * coroutine after waking up the waiters but before
-	 * freeing the channel, so the waiters could safely leave?
-	 */
-
 	if ((channel >= bus->channel_count) || (!bus->channels.at(channel).has_value())) {
 		return;
 	}
@@ -217,17 +182,6 @@ coro_bus_send(struct coro_bus *bus, int channel, unsigned data)
 
 		return 0;
 	}
-	/*
-	 * Try sending in a loop, until success. If error, then
-	 * check which one is that. If 'wouldblock', then suspend
-	 * this coroutine and try again when woken up.
-	 *
-	 * If see the channel has space, then wakeup the first
-	 * coro in the send-queue. That is needed so when there is
-	 * enough space for many messages, and many coroutines are
-	 * waiting, they would then wake each other up one by one
-	 * as lone as there is still space.
-	 */
 }
 
 int
@@ -254,12 +208,6 @@ coro_bus_try_send(struct coro_bus *bus, int channel, unsigned data)
 	}
 
 	return 0;
-
-	/*
-	 * Append data if has space. Otherwise 'wouldblock' error.
-	 * Wakeup the first coro in the recv-queue! To let it know
-	 * there is data.
-	 */
 }
 
 int
