@@ -32,6 +32,9 @@ if(NOT ENABLE_GLOB_SEARCH)
     set(TEST_SOURCES
         solution.cpp
         parser.cpp
+        branch.cpp
+        command.cpp
+        pipe.cpp
         ${UTILS_SOURCES}
     )
     add_executable(mybash ${TEST_SOURCES})
