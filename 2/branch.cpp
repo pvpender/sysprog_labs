@@ -5,7 +5,7 @@ Branch::Branch(std::shared_ptr<ICommand> firstCommand, bool executeOnFail)
 {
 }
 
-void Branch::setSecond(SecondVariant secondCommand) 
+void Branch::setSecond(SecondCommand secondCommand) 
 {
     this->_secondCommand = secondCommand;    
 }

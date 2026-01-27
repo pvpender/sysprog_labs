@@ -11,11 +11,10 @@
 #include "icommand.h"
 #include "branch.h"
 
-static void
-execute_command_line(const struct command_line *line)
-{
-	/* REPLACE THIS CODE WITH ACTUAL COMMAND EXECUTION */
+typedef std::variant<std::shared_ptr<ICommand>, std::shared_ptr<Branch>> StartCommand;
 
+StartCommand 
+build_graph(const struct command_line *line) {
 	std::queue<std::shared_ptr<Command>> commandQueue;
 	std::queue<std::shared_ptr<Pipe>> pipeQueue;
 	std::queue<std::shared_ptr<Branch>> branchQueue;
@@ -110,8 +109,35 @@ execute_command_line(const struct command_line *line)
 		branchQueue.pop();
 	}
 
+	if (startBranch.has_value()) {
+		return startBranch.value();
+	}
 
+	if (!pipeQueue.empty()) {
+		return pipeQueue.front();
+	}
 
+	return commandQueue.front();
+}
+
+static int
+execute_command_line(const struct command_line *line)
+{
+	/* REPLACE THIS CODE WITH ACTUAL COMMAND EXECUTION */
+
+	
+	
+
+	StartCommand command = build_graph(line);
+	int exitCode;
+	
+	if (std::holds_alternative<std::shared_ptr<Branch>>(command)) {
+		exitCode = std::get<std::shared_ptr<Branch>>(command)->execute();
+	} else {
+		exitCode = std::get<std::shared_ptr<ICommand>>(command)->execute();
+	}
+
+	return exitCode;
 
 	assert(line != NULL);
 	printf("================================\n");
@@ -144,6 +170,8 @@ execute_command_line(const struct command_line *line)
 			assert(false);
 		}
 	}
+
+	return 0;
 }
 
 int
@@ -153,6 +181,7 @@ main(void)
 	char buf[buf_size];
 	int rc;
 	struct parser *p = parser_new();
+	int exitCode = 0;
 	while ((rc = read(STDIN_FILENO, buf, buf_size)) > 0) {
 		parser_feed(p, buf, rc);
 		struct command_line *line = NULL;
@@ -164,9 +193,15 @@ main(void)
 				printf("Error: %d\n", (int)err);
 				continue;
 			}
-			execute_command_line(line);
+			exitCode = execute_command_line(line);
 			delete line;
+
+			if (exitCode == Command::EXIT_COMMAND)\
+				break;
 		}
+
+		if (exitCode == Command::EXIT_COMMAND)
+			break;
 	}
 	parser_delete(p);
 	return 0;
