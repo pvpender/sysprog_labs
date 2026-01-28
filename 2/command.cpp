@@ -37,7 +37,7 @@ int Command::execute(std::optional<int> readDescriptor, std::optional<int> write
 
         this->_exitWasCalled = true;
         
-        exit(exitCode);
+        return exitCode;
     }
 
     pid_t childPid = fork();

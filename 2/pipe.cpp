@@ -9,11 +9,6 @@ Pipe::Pipe(std::shared_ptr<ICommand> firstCommand, std::shared_ptr<ICommand> sec
 
 int Pipe::execute(std::optional<int> readDescriptor, std::optional<int> writeDescriptor)
 {
-
-    auto firstPipe = std::dynamic_pointer_cast<Pipe>(_firstCommand);
-    auto secondPipe = std::dynamic_pointer_cast<Pipe>(_secondCommand);
-
-
     int pipefd[2];
     int exitCode = 0;
     int status;
@@ -27,7 +22,7 @@ int Pipe::execute(std::optional<int> readDescriptor, std::optional<int> writeDes
         close(pipefd[0]);
         exitCode = this->_firstCommand->execute(readDescriptor, pipefd[1]);
         close(pipefd[1]);
-        exit(exitCode);
+        _exit(exitCode);
     }
 
     pid_t pid_2 = fork();
@@ -35,7 +30,7 @@ int Pipe::execute(std::optional<int> readDescriptor, std::optional<int> writeDes
         close(pipefd[1]);
         exitCode = this->_secondCommand->execute(pipefd[0], writeDescriptor);
         close(pipefd[0]);
-        exit(exitCode);
+        _exit(exitCode);
     }
 
 

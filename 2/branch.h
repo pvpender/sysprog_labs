@@ -10,15 +10,17 @@
 
 class Branch {
     public:
-        using SecondCommand = std::variant<std::shared_ptr<ICommand>, std::shared_ptr<Branch>>;
+        using FirstCommand = std::variant<std::shared_ptr<ICommand>, std::shared_ptr<Branch>>;
 
         Branch() = delete;
-        Branch(std::shared_ptr<ICommand> firstCommand, bool executeOnFail);
-        void setSecond(SecondCommand secondCommand);
+        Branch(FirstCommand firstCommand, bool executeOnFail);
+        void setSecond(std::shared_ptr<ICommand> secondCommand);
         int execute();
+        bool exitWasCalled();
 
     private:
-        std::shared_ptr<ICommand> _firstCommand;
-        std::optional<SecondCommand> _secondCommand;
+        FirstCommand _firstCommand;
+        std::optional<std::shared_ptr<ICommand>> _secondCommand;
         bool _executeOnFail;
+        bool _exitWasCalled = false;
 };
