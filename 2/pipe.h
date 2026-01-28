@@ -13,8 +13,11 @@ class Pipe : public ICommand {
         Pipe() = delete;
         Pipe(std::shared_ptr<ICommand> firstCommand, std::shared_ptr<ICommand> secondCommand);
         int execute(std::optional<int> readDescriptor = std::nullopt, std::optional<int> writeDescriptor = std::nullopt) override;
+        bool exitWasCalled() override;
+        bool isExit() override;
 
     private:
         std::shared_ptr<ICommand> _firstCommand;
         std::shared_ptr<ICommand> _secondCommand;
+        bool _exitCall = false;
 };

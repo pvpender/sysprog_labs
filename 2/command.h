@@ -11,7 +11,8 @@ class Command : public ICommand {
         Command() = delete;
         Command(command command, output_type outputType = output_type::OUTPUT_TYPE_STDOUT, std::string outputFile = "", bool isBackground = false);
         int execute(std::optional<int> readDescriptor = std::nullopt, std::optional<int> writeDescriptor = std::nullopt) override;
-        static const int EXIT_COMMAND = 100;
+        bool exitWasCalled() override;
+        bool isExit() override;
 
     private:
         command _command;
@@ -19,4 +20,6 @@ class Command : public ICommand {
         output_type _outputType;
         std::string _outputFile;
         bool _isBackground;
+        bool _exitWasCalled;
+        bool _isExit = false;
 };
