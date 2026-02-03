@@ -7,6 +7,7 @@
 #include <memory>
 #include <fstream>
 #include <sys/wait.h>
+#include <set>
 
 #include "pipe.h"
 #include "command.h"
@@ -30,6 +31,12 @@ can_be_optimised(const struct command_line *line) {
 	return true;
 }
 
+bool is_simple_command(std::string command) {
+	std::set<std::string> simpleCommands = {"cat", "grep", "head", "tail", "true", "false", "yes"};
+
+	return (simpleCommands.find(command) != simpleCommands.end());
+}
+
 bool
 is_equal_commands(const std::optional<command> command1, const std::optional<command> command2) {
 	if (!command1.has_value() || !command2.has_value()) {
@@ -45,6 +52,9 @@ is_equal_commands(const std::optional<command> command1, const std::optional<com
 	if (cmd1.args.size() != cmd2.args.size()) 
 		return false;
 		
+	if (!is_simple_command(cmd2.exe))
+		return false;
+
 	for (size_t i = 0; i < cmd1.args.size(); ++i) {
 		if (cmd1.args[i] != cmd2.args[i]) {
 			return false;
