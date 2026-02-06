@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 #include <cstring>
-#include <iostream>
 #include <algorithm>
 
 enum {
@@ -93,22 +92,22 @@ int
 ufs_open(const char *filename, int flags)
 {
 	file *openFile = NULL;
+	bool noFile = true;
 
 	rlist_foreach_entry(openFile, &file_list, in_file_list) {
 		if ((openFile->name == filename) && !openFile->for_delete) {
+			noFile = false;
 			break;
 		}
-
-		openFile = NULL;
 	}
 
-	if ((rlist_empty(&file_list) || (openFile == NULL)) && (flags == 0)) {
+	if ((rlist_empty(&file_list) || noFile) && (flags == 0)) {
 		ufs_error_code = UFS_ERR_NO_FILE;
 
 		return -1;
 	}
 
-	if ((rlist_empty(&file_list) || (openFile == NULL)) && (flags == UFS_CREATE)) {
+	if ((rlist_empty(&file_list) || noFile) && (flags == UFS_CREATE)) {
 		openFile = new file{.name = filename};
 		rlist_add_entry(&file_list, openFile, in_file_list);
 	}
@@ -232,7 +231,6 @@ ufs_read(int fd, char *buf, size_t size)
 		++index;
 	}
 
-	std::cout<<readed_bytes;
 	return readed_bytes;
 }
 
@@ -264,16 +262,16 @@ int
 ufs_delete(const char *filename)
 {
 	file *fileForDelete = NULL;
+	bool noFile = true;
 
 	rlist_foreach_entry(fileForDelete, &file_list, in_file_list) {
 		if ((fileForDelete->name == filename) && !fileForDelete->for_delete) {
+			noFile = false;
 			break;
 		}
-
-		fileForDelete = NULL;
 	}
 
-	if ((rlist_empty(&file_list) || (fileForDelete == NULL))) {
+	if ((rlist_empty(&file_list) || noFile)) {
 		ufs_error_code = UFS_ERR_NO_FILE;
 
 		return -1;
@@ -295,11 +293,63 @@ ufs_delete(const char *filename)
 int
 ufs_resize(int fd, size_t new_size)
 {
-	/* IMPLEMENT THIS FUNCTION */
-	(void)fd;
-	(void)new_size;
-	ufs_error_code = UFS_ERR_NOT_IMPLEMENTED;
-	return -1;
+	if ((fd < 0) || (fd > (int)file_descriptors.size() - 1) || file_descriptors.at(fd) == NULL) {
+		ufs_error_code = UFS_ERR_NO_FILE;
+
+		return -1;
+	}
+
+	filedesc *descriptor = file_descriptors.at(fd);
+
+	if (descriptor->flag == UFS_READ_ONLY) {
+		ufs_error_code = UFS_ERR_NO_PERMISSION;
+
+		return -1;
+	}
+
+	if (new_size > MAX_FILE_SIZE) {
+		ufs_error_code = UFS_ERR_NO_MEM;
+
+		return -1;
+	}
+
+	if (descriptor->atfile->eof_offset <= new_size) {
+		size_t bytesToAllocation = new_size - BLOCK_SIZE * ((descriptor->atfile->eof_offset + BLOCK_SIZE - 1) / BLOCK_SIZE);
+		if (bytesToAllocation <= 0) {
+			return 0;
+		}
+
+		size_t blockToAdd = (bytesToAllocation + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+		for (size_t i = 0; i < blockToAdd; ++i) {
+			rlist_add_tail_entry(&descriptor->atfile->blocks, new block(), in_block_list);
+		}
+
+		return 0;
+	}
+
+	size_t currentBlocksCount = (descriptor->atfile->eof_offset + BLOCK_SIZE - 1) / BLOCK_SIZE;
+	size_t newBlocksCount = (new_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+	block *blck = NULL;
+	for (size_t i = 0; i < (currentBlocksCount - newBlocksCount); ++i) {
+		blck = rlist_last_entry(&descriptor->atfile->blocks, block, in_block_list);
+		rlist_shift_tail(&descriptor->atfile->blocks);
+		delete blck;
+	}
+
+	descriptor->atfile->eof_offset = new_size;
+
+	for (auto fileDesk: file_descriptors) {
+		if ((fileDesk != NULL) && (fileDesk->atfile->name == descriptor->atfile->name)) {
+			if ((fileDesk->block_num * BLOCK_SIZE + fileDesk->offset) > new_size) {
+				fileDesk->block_num = newBlocksCount - 1;
+				fileDesk->offset = new_size - (newBlocksCount - 1) * BLOCK_SIZE;
+			}
+		}
+	}
+
+	return 0;
 }
 
 #endif
@@ -316,4 +366,14 @@ ufs_destroy(void)
 	 * The recommended way of freeing the memory is to swap()
 	 * the vector with a temporary empty vector.
 	 */
+
+	file *fl;
+
+	rlist_foreach_entry_reverse(fl, &file_list, in_file_list) {
+		clear_file(fl);
+	}
+
+	std::vector<filedesc*> emptyFileDesk;
+	
+	std::swap(file_descriptors, emptyFileDesk);
 }
