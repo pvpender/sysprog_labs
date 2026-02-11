@@ -39,9 +39,8 @@ struct thread_pool {
 int
 thread_pool_new(int thread_count, struct thread_pool **pool)
 {
-	if ((thread_count > TPOOL_MAX_THREADS) || (thread_count <= 0)) {
+	if ((thread_count > TPOOL_MAX_THREADS) || (thread_count <= 0))
 		return TPOOL_ERR_INVALID_ARGUMENT;
-	}
 
 	(*pool) = new thread_pool();
 	(*pool)->threadsLimit = thread_count;
@@ -53,9 +52,8 @@ thread_pool_new(int thread_count, struct thread_pool **pool)
 int
 thread_pool_delete(struct thread_pool *pool)
 {
-	if (pool->tasks.size() > 0 || pool->busyThreadsCount > 0) {
+	if (pool->tasks.size() > 0 || pool->busyThreadsCount > 0)
 		return TPOOL_ERR_HAS_TASKS;
-	}
 
 	std::unique_lock lock(pool->poolMutex);
     pool->stop = true;
@@ -79,9 +77,8 @@ int
 thread_pool_push_task(struct thread_pool *pool, struct thread_task *task)
 {
 
-	if (pool->tasks.size() == TPOOL_MAX_TASKS) {
+	if (pool->tasks.size() == TPOOL_MAX_TASKS) 
 		return TPOOL_ERR_TOO_MANY_TASKS;
-	}
 
 	if ((pool->busyThreadsCount.load() == pool->threads.size()) && (pool->threads.size() < pool->threadsLimit)) {
 		pool->threads.emplace_back([pool]{
