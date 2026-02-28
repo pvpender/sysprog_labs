@@ -80,9 +80,11 @@ clear_file(file *file) {
 		return;
 	}
 	
-	block *block = NULL;
-	rlist_foreach_entry_reverse(block, &file->blocks, in_block_list) {
-		delete block;
+	block *block_var = NULL;
+	block *next_block = NULL;
+
+	rlist_foreach_entry_safe_reverse(block_var, &file->blocks, in_block_list, next_block) {
+		delete block_var;
 	}
 
 	return;
