@@ -21,6 +21,7 @@ struct thread_task {
 	std::condition_variable cv = std::condition_variable();
 	thread_task_status status = TASK_NEW;
 	std::mutex mutex = std::mutex();
+	std::atomic<bool> joined{false};
 	std::atomic<bool> detatch{false};
 };
 
@@ -104,7 +105,7 @@ thread_pool_push_task(struct thread_pool *pool, struct thread_task *task)
 					bool should_delete = task->detatch.load();					
 
 					taskLock.unlock();
-					task->cv.notify_one();
+					task->cv.notify_all();
 
 					if (should_delete)
 						delete task;
@@ -156,6 +157,7 @@ thread_task_join(struct thread_task *task)
 
 	std::unique_lock lock(task->mutex);
 	task->cv.wait(lock, [=]{return task->status == TASK_FINISHED;});
+	task->joined = true;
 	lock.unlock();
 
 	return 0;
@@ -179,6 +181,7 @@ thread_task_timed_join(struct thread_task *task, double timeout)
 
 	std::unique_lock lock(task->mutex);
 	bool done = task->cv.wait_for(lock, timeout_duration) != std::cv_status::timeout;
+	task->joined = true;
 	lock.unlock();
 
 	if (done)
@@ -192,10 +195,22 @@ thread_task_timed_join(struct thread_task *task, double timeout)
 int
 thread_task_delete(struct thread_task *task)
 {
-	if ((task->status == TASK_WAITING) || (task->status == TASK_RUNNING)) {
+	std::unique_lock lock(task->mutex);
+
+	if (task->detatch.load()) {
+		lock.unlock();
 		return TPOOL_ERR_TASK_IN_POOL;
 	}
 
+	if ((task->status == TASK_WAITING) 
+		|| (task->status == TASK_RUNNING) 
+		|| ((task->joined.load() == false) && (task->status != TASK_NEW && task->status != TASK_FINISHED))
+	) {
+		lock.unlock();
+		return TPOOL_ERR_TASK_IN_POOL;
+	}
+
+	lock.unlock();
 	delete task;
 
 	return 0;
