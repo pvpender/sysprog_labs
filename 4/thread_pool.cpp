@@ -61,13 +61,18 @@ thread_pool_delete(struct thread_pool *pool)
 	lock.unlock();
 	pool->poolCv.notify_all();
 
+	std::queue<thread_task*> empty;
+	std::swap(pool->tasks, empty);
+
+
 	for (auto& thread : pool->threads) {
         if (thread.joinable()) {
             thread.join();
         }
     }
 
-	pool->threads.clear();
+	std::vector<std::thread> emptyThreads;
+	std::swap(pool->threads, emptyThreads);
 
 	delete pool;
 
@@ -83,7 +88,7 @@ thread_pool_push_task(struct thread_pool *pool, struct thread_task *task)
 
 	if ((pool->busyThreadsCount.load() == pool->threads.size()) && (pool->threads.size() < pool->threadsLimit)) {
 		pool->threads.emplace_back([pool]{
-			while (!pool->stop) {
+			while (!pool->stop) {	
 				std::unique_lock lock(pool->poolMutex);
 				pool->poolCv.wait(lock, [pool]{ return !pool->tasks.empty() || pool->stop; });
 
@@ -100,9 +105,9 @@ thread_pool_push_task(struct thread_pool *pool, struct thread_task *task)
 					task->function();
 					
 					taskLock.lock();
-					task->status = TASK_FINISHED;
 					pool->busyThreadsCount--;
-					bool should_delete = task->detatch.load();					
+					bool should_delete = task->detatch.load();	
+					task->status = TASK_FINISHED;				
 
 					taskLock.unlock();
 					task->cv.notify_all();
@@ -148,16 +153,21 @@ thread_task_is_running(const struct thread_task *task)
 int
 thread_task_join(struct thread_task *task)
 {
-	if (task->status == TASK_NEW)
-		return TPOOL_ERR_TASK_NOT_PUSHED;
-	
-
-	if (task->status == TASK_FINISHED)
-		return 0;
-
 	std::unique_lock lock(task->mutex);
+
+	if (task->status == TASK_NEW) {
+		lock.unlock();	
+		return TPOOL_ERR_TASK_NOT_PUSHED;
+	}
+
+	if (task->status == TASK_FINISHED) {
+		lock.unlock();
+		return 0;
+	}
+
 	task->cv.wait(lock, [=]{return task->status == TASK_FINISHED;});
 	task->joined = true;
+
 	lock.unlock();
 
 	return 0;
@@ -168,18 +178,25 @@ thread_task_join(struct thread_task *task)
 int
 thread_task_timed_join(struct thread_task *task, double timeout)
 {
-	if (task->status == TASK_NEW)
-		return TPOOL_ERR_TASK_NOT_PUSHED;
+	std::unique_lock lock(task->mutex);
 
-	if (task->status == TASK_FINISHED)
+	if (task->status == TASK_NEW) {
+		lock.unlock();
+		return TPOOL_ERR_TASK_NOT_PUSHED;
+	}
+
+	if (task->status == TASK_FINISHED) {
+		lock.unlock();
 		return 0;
+	}
 	
-	if (timeout <= 0.0)
+	if (timeout <= 0.0) {
+		lock.unlock();
 		return TPOOL_ERR_TIMEOUT;
-	
+	}
+		
 	auto timeout_duration = std::chrono::duration<double>(timeout);
 
-	std::unique_lock lock(task->mutex);
 	bool done = task->cv.wait_for(lock, timeout_duration) != std::cv_status::timeout;
 	task->joined = true;
 	lock.unlock();
