@@ -53,10 +53,12 @@ thread_pool_new(int thread_count, struct thread_pool **pool)
 int
 thread_pool_delete(struct thread_pool *pool)
 {
-	if (pool->tasks.size() > 0 || pool->busyThreadsCount > 0)
-		return TPOOL_ERR_HAS_TASKS;
-
 	std::unique_lock lock(pool->poolMutex);
+	if (pool->tasks.size() > 0 || pool->busyThreadsCount > 0) {
+		lock.unlock();
+		return TPOOL_ERR_HAS_TASKS;
+	}
+
     pool->stop = true;
 	lock.unlock();
 	pool->poolCv.notify_all();
@@ -105,12 +107,16 @@ thread_pool_push_task(struct thread_pool *pool, struct thread_task *task)
 					task->function();
 					
 					taskLock.lock();
+
+					lock.lock();
 					pool->busyThreadsCount--;
+					lock.unlock();
+
 					bool should_delete = task->detatch.load();	
 					task->status = TASK_FINISHED;				
 
-					taskLock.unlock();
 					task->cv.notify_all();
+					taskLock.unlock();
 
 					if (should_delete)
 						delete task;
